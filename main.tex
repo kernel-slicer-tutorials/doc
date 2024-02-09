@@ -331,7 +331,7 @@ kernel\_slicer не просто позволяет Вам ускорить ра
 
 Кроме того, скорее всего вы захотите реализовывать различные варианты алгоритмов -- более быстрые и простые, либо наоборот, более медленные и качественные. Наконец, входные и выходные данные, как правило, лежат в обычной хостовой памяти (более сложный вариант, когда данные уже в памяти GPU мы рассмотрим в главе \ref{vulkan-direct}). Именно поэтому взаимодействие ваших алгоритмов с внешней средой предполагается реализовывать через простой и очевидный способ --- виртуальные функции с входными и выходными массивами данных. Рассмотрим как это выглядит на примере: 
 
-\section{Процесс разработки на примере тон-маппинга}
+\section{Процесс разработки на примере тон-маппинга}\label{tm_example}
 
 Предположим, что Вы хотите написать библиотеку тонирующих операторов (tone mapping). Смысл тон-маппинга довольно прост: на входе у нас есть изображение широкого динамического диапазона (т.н. HDR изображение), которое может содержать произвольные значения яркости в пикселах (float). На выходе у нас т.н. LDR изображение, где все яркости могут быть только в интервале от 0 до 255. Такое изображение уже можно посмотреть на экране монитора. Собственно для этого тонирующие операторы в основном и нужны.
 
@@ -598,7 +598,7 @@ In file included from /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/1
 \noindent\underline{Решение 1.3}: Просто добавьте в kernel\_slicer/TINYSTL нужный файлы или определения функций и типов данных. Реализовывать их \underline{не нужно(!!!)}, достаточно только определить, чтобы clang распарсил C++. Это решение относится к ситуации, когда Вы всё-таки хотите смешивать в одном файле алгоритмы и некоторую библиотечную функциональность из STL, которая не определена в данный момент в TINYSTL. Вы можете сделать пулл-реквест или просто направить исправленные версии TINYSTL нам.
 
 \vspace*{5px}
-\noindent\underline{Решение 1.4}: (Если не найдены базовые вещи которые точно должны работать, например vector). На ArchLinux и Windows мы сталкивались со специфическим поведением clang. Он ищет какие-то свои специальные библиотеки в папке ``../lib/clang/17.0.0/include'' относительно той папки, из которой он запускается. Нужно создать такую папку и скопировать туда содержимое из ``llvm12/build/lib/clang/17.0.0/include'', которая есть в llvm соответсвующей версии (можете скачать у них с github). 17-ая версия здесь приведена для примера, если Вы собираете слайсер с другой версией LLVM --- поменяйте ``17.0.0'' на свою версию. История это проблемы здесь: https://github.com/Ray-Tracing-Systems/kernel\_slicer/issues/4
+\noindent\underline{Решение 1.4}: (Если не найдены базовые вещи которые точно должны работать, например vector). На ArchLinux и Windows мы сталкивались со специфическим поведением clang. Он ищет какие-то свои специальные библиотеки в папке ``../lib/clang/17.0.0/include'' относительно той папки, из которой он запускается. Нужно создать такую папку и скопировать туда содержимое из ``llvm17/build/lib/clang/17.0.0/include'', которая есть в llvm соответсвующей версии (можете скачать у них с github). История это проблемы здесь: https://github.com/Ray-Tracing-Systems/kernel\_slicer/issues/4
 
 \subsection{\underline{Проблема №2}: В STL не наден какой-то определённый тип данных или функция.}
 
@@ -607,6 +607,21 @@ In file included from /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/1
 \section{Проблемы обработки исходного кода}
 
 \subsection{\underline{Проблема №3}: Потерянная функция или тип данных.} kernel\_slicer говорит, что функция не найдена, хотя она у Вас точно есть. Либо функция не переносится в шейдер, хотя по логике вроде должна т.к. шейдер из-за этого не собирается.
+
+\noindent\underline{Причина}: Скорее всего kernel\_slicer просто не видит файл, в котором объявлена эта функция. \underline{Решение}: Проверьте аргументы командной строки, с которыми Вы запускаете слайсер. Убедитесь, что файл, в котором определена ваша функция либо явно передаётся в слайсер, либо подключается в одном из передаваемых явно файлов. Слайсер умеет обрабатывать несколько файлов. Просто передавайте их как 1, 2, 3 и т.п. аргументы командной строки разделённые проблелом.  
+
+\subsection{\underline{Проблема №4}: Некоторые строчки кода в шейдерах съедены/испорчены.}
+
+\noindent\underline{Причина}: Мы полагаем, что эта проблема вызывана багом в т.н. front-end части самого clang. Она происходит из-за двойного преобразования текста (т.н. rewrite) в некоторых узлах AST дерева, связанных с неявными преобразованиями типов данных. 
+
+\underline{Решение}: Разбейте в вашем исходном коде такие строчки на несколько более простых строк, чтобы уменьшить число выполняемых преобразований текста на одну строку. Заодно и читаемость кода улучшится.
+
+\subsection{\underline{Проблема №5:} В шейдеры переносится код, который не нужно туда переносить.}
+
+\noindent\underline{Причина}: Алгоритм, который определяет зависимости в коде не совершенен. \underline{Решение}: Используйте макросы условной компиляции вида \#ifndef KERNEL\_SLICER чтобы убрать из обработки определённый код. Либо вынесите этот код в отдельный файл.  
+
+%\section{Другие известные проблемы}
+%\underline{Проблема:} Макрос MAXFLOAT пропадает. \underline{Решение:} Подключите файл <cfloat> и используйте FLT\_MAX.
 
 \chapterimage{ice_patterns.jpg}
 \chapter{Паттерны}\label{patterns}
@@ -617,11 +632,25 @@ In file included from /usr/lib/gcc/x86_64-linux-gnu/11/../../../../include/c++/1
 \chapterimage{nerpa_work_generated.jpg}
 \chapter{Доработка сгенерированного кода}\label{work_with_generated_code}
 
+Если Вы хотите доработать сгенерированный код, Вам нужен такой механизм, который позволил бы сохранять изменения таким образом, чтобы они не пропали после повторной генерации. Поэтому радактировать сгенерированный код напрямую не нужно! Единственный случай, когда Вам это действительно необходимо --- отладка.
+
+Для того чтобы Ваши изменения не пропадали предлагается снова использовать механизм замещения виртуальных функций. Продолжая рассматривать пример в разделе \ref{tm_example}. Допустим Вы написали класс ReinhardTM и сгенерировали класс ReinhardTM\_Vulkan, наследуемый от ReinhardTM. Теперь Вам нужен ещё один шаг --- определите класс ReinhardTM\_Vulkan\_Advanced, в котором Вы можете заместить любые виртуальные функции из ReinhardTM\_Vulkan, изменить вычислительные ядра и т.д. При перегенерациит кода будет изменяфться только класс ReinhardTM\_Vulkan, а Ваши изменения в классе ReinhardTM\_Vulkan\_Advanced не пропадут.
+
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.5\textwidth]{kslicer_pipeline.jpg}
+\caption{Концепция разработки с kernel\_slicer. На последнем шаге Вы можете самостоятельно доработать сгенерированный код на каком-то из существующиз API.}
+\end{figure}
+
+Такой механизм позволяет Вам добавить абсолютно любое изменение в Vulkan-код достаточно прозрачным способом. При этом Вы будете писать вручную на Vulkan лишь небольшую часть кода, которая обращается со специфическим аппаратным ускорением.
+
 \chapterimage{ice_rt.jpg} % Chapter heading image
 \chapter{Особенности паттерна трассировки лучей}
 
-I discovered surfing on the internet a cloud computing software that is free, has data mining algorithms embedded, is specifically developed for Astronomy and is programmed by Caltech, University Federico II and the Astronomical Observatory of Capodimonte. The homepage website, \url{http://dame.dsf.unina.it/index.html}. Well, the platform for testing is ready!, now what? I requested and account and the next day they sent me an acceptance with my user name and my password approved.
-I introduced myself to the documentation, the available clustering functions, the manuals for every method, the blogs and discovered that the was one method available that could work with data cubes and do its clustering on every pattern (number in the multidimensional matrix) which was exactly what I needed. The name of this method is ESOM (Evolving Self Organizing Maps) and I read its manual, did some foolish test with all my image and ... never got a result ... the experiment ran forever (more than two weeks), when I realised that this wasn't the best way to tackle this problem I started considering only clustering on the independent images and not in the data cube due to the fact that the dimensionality was immense. So, in the end my selected methods have some results but not all, here is where all the work has to be done, analysed and tested again.
+Особенность приложений трассировки лучей в том, что в них, как правило, нет какого-то неравномерного изменения количества потоков или сложных параллельных алгоритмов. Все лучи работают абсолютно параллельно и одинаково.
+
+Однако сам код на 1 луч может довольно сложным. Далее про убер-ядра и раздельные ядра... 
 
 \chapterimage{ice_cmd.jpg} % Chapter heading image
 \chapter{Параметры командной строки}
