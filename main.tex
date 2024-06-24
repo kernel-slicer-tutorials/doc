@@ -367,7 +367,7 @@ struct IToneMapping
 class ReinhardTM : public IToneMapping
 {
 public:
-  void Run(int width, int height, 
+  void Run(int w, int h, 
            const float* in_data  [[size("w*h*4")]], 
            uint32_t*    out_data [[size("w*h")]]) override;
 		   
