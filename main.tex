@@ -224,7 +224,7 @@ kernel\_slicer не просто позволяет Вам ускорить ра
 
 \chapter{Быстрый старт}
 
-\section{Сборка}
+\section{Сборка (Linux)}
 
 \begin{enumerate}
 	
@@ -255,9 +255,39 @@ kernel\_slicer не просто позволяет Вам ускорить ра
 
 \end{enumerate}
 
-\begin{remark}
-	kernel\_slicer можно собрать и использовать под ОС Windows и другие операционные системы, поскольку он является обычным плагином для clang. Для этого смотрите в репозитории инструкцию по сборке в составе LLVM. В данный момент мы не поддерживаем документацию и примеры для Windows в актуальном состоянии, поэтому не рекомендуем начинать с этого. 
-\end{remark}
+\newpage
+
+\section{Сборка (Windows)}
+
+(*) Для начала скачайте и соберите LLVM-17 по инструкции. \newline https://llvm.org/docs/GettingStarted.html\#getting-the-source-code-and-building-llvm \newline
+Используйте следующую конфигуаицию в CMake для LLVM: -DLLVM\_ENABLE\_PROJECTS="clang"
+\begin{enumerate}
+\item git clone --branch release/17.x --depth=1 https://github.com/llvm/llvm-project.git
+\item cd llvm-project
+\item cmake -S llvm -B build -G ``Visual Studio 17 2022'' -DLLVM\_ENABLE\_PROJECTS=``clang'' -DCMAKE\_BUILD\_TYPE=Release
+\item Откройте файл решения (солюшена) ``llvm-project\\build\\LLVM.sln''и запустите сборку.
+\item Сборка время от времени может прерываться с ошибками из-за того что у линковщика заканчивается память. Просто запускайте её снова до тех пор пока все таргеты не будут собраны.
+\end{enumerate}
+
+\hspace{3ex}
+\newline\noindent (*) Теперь соберите kernel\_slicer используя CMake и VS:
+\begin{enumerate}
+\item cd kernel\_slicer
+\item mkdir cmake-build-release 
+\item cd cmake-build-release
+\item \begin{verbatim}cmake 
+  -DLLVM\_DIR=..\llvm-project\build\lib\cmake\llvm 
+  -DClang\_DIR=..\llvm-project\build\lib\cmake\clang 
+  -DCMAKE\_BUILD\_TYPE=Release 
+  .. \end{verbatim}
+\item Откройте файл солюшена \begin{verbatim} ``kernel_slicer\cmake-build-release\kernel_slicer.sln'' \end{verbatim} и запустите сборку.
+\end{enumerate}
+
+\section{Сборка в составе LLVM}
+
+Для других операционных систем Вы можете использовать вариант сблоки в составе LLVM.
+Инструкция расположена по следующей ссылке:\newline
+https://github.com/Ray-Tracing-Systems/kernel\_slicer/blob/master/doc/README\_build\_with\_llvm.md
 
 \pagebreak
 \section{Запуск первого примера}
